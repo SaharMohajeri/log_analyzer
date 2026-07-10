@@ -1,4 +1,5 @@
 import re
+from collections import Counter
 
 LOG_PATTERN = re.compile(
     r'(?P<ip>\S+) \S+ \S+ '
@@ -11,6 +12,9 @@ LOG_PATTERN = re.compile(
 
 total = 0
 bad = 0
+ip_counter = Counter()
+path_counter = Counter()
+status_counter = Counter()
 
 with open("access.log", "r", encoding="utf-8") as f:
     for line in f:
@@ -20,5 +24,14 @@ with open("access.log", "r", encoding="utf-8") as f:
             bad += 1
             continue
 
+        data = match.groupdict()
+        ip_counter[data["ip"]] += 1
+        path_counter[data["path"]] += 1
+        status_counter[data["status"]] += 1
+
 print(f"total lines: {total}")
 print(f"bad lines: {bad}")
+print(f"Unique IPs: {len(ip_counter)}")
+print("Top 10 endpoints:")
+for path, count in path_counter.most_common(10):
+    print(f"  {path}: {count}")
