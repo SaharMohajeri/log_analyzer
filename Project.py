@@ -14,6 +14,32 @@ LOG_PATTERN = re.compile(
 
 TIME_FORMAT = "%d/%b/%Y:%H:%M:%S %z"
 
+def print_report(total, bad, ip_counter, path_counter, status_counter, hour_counter):
+    valid_total = total - bad
+
+    error_count = sum(
+        count for status, count in status_counter.items()
+        if status.startswith("4") or status.startswith("5")
+    )
+    error_rate = (error_count / valid_total * 100) if valid_total else 0
+
+    print(f"Total lines processed: {total}")
+    print(f"Bad/malformed lines skipped: {bad}")
+    print(f"Valid requests: {valid_total}")
+    print(f"Unique IPs: {len(ip_counter)}")
+    print(f"Error rate (4xx/5xx): {error_rate:.3f}% ({error_count} requests)")
+
+    print("\nTop 10 endpoints:")
+    for path, count in path_counter.most_common(10):
+        print(f"  {path:<25} {count}")
+
+    print("\nHourly distribution:")
+    max_count = max(hour_counter.values()) if hour_counter else 1
+    for hour in sorted(hour_counter):
+        count = hour_counter[hour]
+        bar_length = int((count / max_count) * 40)
+        bar = "#" * bar_length
+        print(f"  {hour:02d}:00 | {bar} {count}")
 
 def main():
     parser = argparse.ArgumentParser(description="Analyze access log files")
@@ -53,24 +79,8 @@ def main():
     print(f"total lines: {total}")
     print(f"bad lines: {bad}")
     print(f"Unique IPs: {len(ip_counter)}")
-    print("Top 10 endpoints:")
-    for path, count in path_counter.most_common(10):
-        print(f"  {path}: {count}")
 
-    print("\nHourly distribution:")
-    for hour in sorted(hour_counter):
-        print(f"  {hour:02d}:00 -> {hour_counter[hour]}")
-
-    error_count = 0
-    for status, count in status_counter.items():
-        if status.startswith("4") or status.startswith("5"):
-            error_count += count
-
-    valid_total = total - bad
-    error_rate = (error_count / valid_total) * 100
-
-    print(f"\nError rate: {error_rate:.3f}%")
-    print(f"Error count: {error_count}")
+    print_report(total, bad, ip_counter, path_counter, status_counter, hour_counter)
 
 if __name__ == "__main__":
     main()
