@@ -52,10 +52,20 @@ def main():
     status_counter = Counter()
     hour_counter = Counter() 
 
-    with open(args.filepath, "r", encoding="utf-8") as f, \
+    try:
+        input_file = open(args.filepath, "r", encoding="utf-8")
+    except FileNotFoundError:
+        print(f"Error: file not found: {args.filepath}")
+        return
+    except PermissionError:
+        print(f"Error: no permission to read file: {args.filepath}")
+        return
+
+    with input_file, \
          open("good_lines.log", "w", encoding="utf-8") as good_file, \
          open("bad_lines.log", "w", encoding="utf-8") as bad_file:
-        for line in f:
+
+        for line in input_file:
             total += 1
             match = LOG_PATTERN.match(line)
             if match is None:
@@ -70,15 +80,10 @@ def main():
                 bad_file.write(line)
                 continue
             good_file.write(line)
-            data = match.groupdict()
             ip_counter[data["ip"]] += 1
             path_counter[data["path"]] += 1
             status_counter[data["status"]] += 1
             hour_counter[dt.hour] += 1
-
-    print(f"total lines: {total}")
-    print(f"bad lines: {bad}")
-    print(f"Unique IPs: {len(ip_counter)}")
 
     print_report(total, bad, ip_counter, path_counter, status_counter, hour_counter)
 
