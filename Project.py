@@ -44,5 +44,5 @@ for status, count in status_counter.items():
 valid_total = total - bad
 error_rate = (error_count / valid_total) * 100
 
-print(f"\nError rate: {error_rate:.2f}%")
+print(f"\nError rate: {error_rate:.3f}%")
 print(f"Error count: {error_count}")
