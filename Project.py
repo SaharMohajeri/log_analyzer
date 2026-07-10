@@ -35,3 +35,14 @@ print(f"Unique IPs: {len(ip_counter)}")
 print("Top 10 endpoints:")
 for path, count in path_counter.most_common(10):
     print(f"  {path}: {count}")
+
+error_count = 0
+for status, count in status_counter.items():
+    if status.startswith("4") or status.startswith("5"):
+        error_count += count
+
+valid_total = total - bad
+error_rate = (error_count / valid_total) * 100
+
+print(f"\nError rate: {error_rate:.2f}%")
+print(f"Error count: {error_count}")
