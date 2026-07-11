@@ -1,4 +1,6 @@
 import re
+import gzip
+import time
 from collections import Counter, defaultdict
 import argparse
 
@@ -219,6 +221,7 @@ def print_report(total, bad, ip_counter, path_counter, status_counter, hour_coun
 
 
 def main():
+    start_time = time.perf_counter()
     parser = argparse.ArgumentParser(description="Analyze access log files")
     parser.add_argument("filepath", help="Path to the access log file")
     args = parser.parse_args()
@@ -233,7 +236,10 @@ def main():
     error_5xx_counter = Counter()
     
     try:
-        input_file = open(args.filepath, "r", encoding="utf-8")
+        if args.filepath.endswith(".gz"):
+            input_file = gzip.open(args.filepath, "rt", encoding="utf-8")
+        else:
+            input_file = open(args.filepath, "r", encoding="utf-8")
     except FileNotFoundError:
         print(f"❌ Error: File not found: {args.filepath}")
         return
@@ -269,6 +275,8 @@ def main():
     print_report(total, bad, ip_counter, path_counter, status_counter, hour_counter)
     detect_suspicious_activity(ip_counter, path_counter, status_counter, hour_counter, unauthorized_counter)
     detect_error_spike(hour_counter, error_5xx_counter)
+    elapsed = time.perf_counter() - start_time
+    print(f"\n Execution time: {elapsed:.3f} seconds")
 
 if __name__ == "__main__":
     main()
