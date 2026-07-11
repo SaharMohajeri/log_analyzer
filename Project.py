@@ -1,5 +1,6 @@
 import re
 import gzip
+import json
 import time
 from collections import Counter, defaultdict
 import argparse
@@ -177,7 +178,7 @@ def print_unauthorized_details(unauthorized_counter):
         print(f"    🎯 Most active attacker: {top_ip} ({top_ip_count} attempts)")
 
 
-def print_report(total, bad, ip_counter, path_counter, status_counter, hour_counter):
+def print_report(total, bad, ip_counter, path_counter, status_counter, hour_counter, top_n=10):
     print("\n" + "═" * 60)
     print("📊 ACCESS LOG ANALYSIS REPORT")
     print("═" * 60)
@@ -197,9 +198,9 @@ def print_report(total, bad, ip_counter, path_counter, status_counter, hour_coun
     print(f"    🌐 Unique IPs: {len(ip_counter)}")
     print(f"    ⚠️  Error rate (4xx/5xx): {error_rate:.3f}% ({error_count} requests)")
     
-    print("\n▸ Top 10 Most Requested Endpoints:")
+    print("\n▸ Top {top_n} Most Requested Endpoints:")
     print("  ─" * 20)
-    for idx, (path, count) in enumerate(path_counter.most_common(10), 1):
+    for idx, (path, count) in enumerate(path_counter.most_common(top_n), 1):
         display_path = path if len(path) <= 50 else path[:47] + "..."
         bar = "█" * min(int(count / max(path_counter.values()) * 30), 30)
         print(f"    {idx:2}. {display_path:<50} {count:>6}  {bar}")
@@ -219,11 +220,49 @@ def print_report(total, bad, ip_counter, path_counter, status_counter, hour_coun
     
     print("\n" + "═" * 60)
 
+def build_report_dict(total, bad, ip_counter, path_counter, status_counter, hour_counter, top_n=10):
+    valid_total = total - bad
+    error_count = sum(
+        count for status, count in status_counter.items()
+        if status.startswith("4") or status.startswith("5")
+    )
+    error_rate = (error_count / valid_total * 100) if valid_total > 0 else 0
+
+    hourly = []
+    for bucket in sorted(hour_counter):
+        year, month, day, hour = bucket
+        hourly.append({
+            "date": f"{year}-{month:02d}-{day:02d}",
+            "hour": hour,
+            "count": hour_counter[bucket],
+        })
+
+    return {
+        "total_lines": total,
+        "bad_lines": bad,
+        "valid_requests": valid_total,
+        "unique_ips": len(ip_counter),
+        "error_rate_percent": round(error_rate, 3),
+        "top_endpoints": [
+            {"path": path, "count": count}
+            for path, count in path_counter.most_common(top_n)
+        ],
+        "hourly_distribution": hourly,
+    }
+
 
 def main():
     start_time = time.perf_counter()
     parser = argparse.ArgumentParser(description="Analyze access log files")
     parser.add_argument("filepath", help="Path to the access log file")
+    parser.add_argument("--top", type=int, default=10, help="Number of top endpoints to show (default: 10)")
+    parser.add_argument("--json", action="store_true", help="Output the report as JSON instead of human-readable text")
+    parser.add_argument(
+        "--output",
+        type=str,
+        default=None,
+        help="Write the report to this file instead of printing to the terminal"
+    )
     args = parser.parse_args()
     
     total = 0
@@ -272,9 +311,20 @@ def main():
             if status in ['401', '403']:
                 unauthorized_counter[(ip, path)] += 1
 
-    print_report(total, bad, ip_counter, path_counter, status_counter, hour_counter)
-    detect_suspicious_activity(ip_counter, path_counter, status_counter, hour_counter, unauthorized_counter)
-    detect_error_spike(hour_counter, error_5xx_counter)
+    if args.json:
+        report = build_report_dict(total, bad, ip_counter, path_counter, status_counter, hour_counter, top_n=args.top)
+        json_text = json.dumps(report, indent=2)
+
+        if args.output:
+            with open(args.output, "w", encoding="utf-8") as out_file:
+                out_file.write(json_text)
+            print(f"Report written to {args.output}")
+        else:
+            print(json_text)
+    else:
+        print_report(total, bad, ip_counter, path_counter, status_counter, hour_counter, top_n=args.top)
+        detect_suspicious_activity(ip_counter, path_counter, status_counter, hour_counter, unauthorized_counter)
+        detect_error_spike(hour_counter, error_5xx_counter)
     elapsed = time.perf_counter() - start_time
     print(f"\n Execution time: {elapsed:.3f} seconds")
 

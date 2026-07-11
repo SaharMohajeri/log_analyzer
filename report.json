@@ -1,0 +1,101 @@
+{
+  "total_lines": 500000,
+  "bad_lines": 4956,
+  "valid_requests": 495044,
+  "unique_ips": 4001,
+  "error_rate_percent": 10.317,
+  "top_endpoints": [
+    {
+      "path": "/",
+      "count": 146302
+    },
+    {
+      "path": "/products",
+      "count": 87685
+    },
+    {
+      "path": "/api/search",
+      "count": 48842
+    },
+    {
+      "path": "/cart",
+      "count": 34181
+    },
+    {
+      "path": "/login",
+      "count": 31658
+    },
+    {
+      "path": "/static/app.js",
+      "count": 29249
+    },
+    {
+      "path": "/static/style.css",
+      "count": 24299
+    },
+    {
+      "path": "/health",
+      "count": 14549
+    },
+    {
+      "path": "/api/checkout",
+      "count": 9807
+    },
+    {
+      "path": "/products/9820",
+      "count": 20
+    }
+  ],
+  "hourly_distribution": [
+    {
+      "date": "2026-06-01",
+      "hour": 0,
+      "count": 51026
+    },
+    {
+      "date": "2026-06-01",
+      "hour": 1,
+      "count": 50971
+    },
+    {
+      "date": "2026-06-01",
+      "hour": 2,
+      "count": 50975
+    },
+    {
+      "date": "2026-06-01",
+      "hour": 3,
+      "count": 50705
+    },
+    {
+      "date": "2026-06-01",
+      "hour": 4,
+      "count": 50847
+    },
+    {
+      "date": "2026-06-01",
+      "hour": 5,
+      "count": 51002
+    },
+    {
+      "date": "2026-06-01",
+      "hour": 6,
+      "count": 50809
+    },
+    {
+      "date": "2026-06-01",
+      "hour": 7,
+      "count": 50844
+    },
+    {
+      "date": "2026-06-01",
+      "hour": 8,
+      "count": 50912
+    },
+    {
+      "date": "2026-06-01",
+      "hour": 9,
+      "count": 36953
+    }
+  ]
+}
