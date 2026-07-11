@@ -1,6 +1,5 @@
 import re
 from collections import Counter, defaultdict
-from datetime import datetime
 import argparse
 
 LOG_PATTERN = re.compile(
@@ -12,7 +11,64 @@ LOG_PATTERN = re.compile(
     r'"(?P<user_agent>[^"]*)"'
 )
 
-TIME_FORMAT = "%d/%b/%Y:%H:%M:%S %z"
+MONTH_MAP = {
+    "Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4,
+    "May": 5, "Jun": 6, "Jul": 7, "Aug": 8,
+    "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12,
+}
+
+
+def detect_error_spike(hour_counter, error_5xx_counter):
+    print("\n▸ 5xx Error Rate Spike Detection:")
+    print("  ─" * 20)
+
+    if not hour_counter:
+        print("    ✅ No data available")
+        return
+
+    bucket_rates = {}
+    for bucket, total in hour_counter.items():
+        errors = error_5xx_counter.get(bucket, 0)
+        bucket_rates[bucket] = (errors / total) * 100
+
+    avg_rate = sum(bucket_rates.values()) / len(bucket_rates)
+    worst_bucket = max(bucket_rates, key=bucket_rates.get)
+    worst_rate = bucket_rates[worst_bucket]
+
+    year, month, day, hour = worst_bucket
+    print(f"    Average 5xx error rate across all buckets: {avg_rate:.2f}%")
+    print(f"    Worst bucket: {year}-{month:02d}-{day:02d} {hour:02d}:00 -> {worst_rate:.2f}% error rate")
+
+    if worst_rate > avg_rate * 2 and worst_rate > 1:
+        print(f"    🔴 SPIKE DETECTED: this bucket's error rate is {worst_rate / avg_rate:.1f}x the average!")
+    else:
+        print("    ✅ No significant spike detected")
+
+def parse_timestamp(time_str):
+    """Manually parse 'DD/Mon/YYYY:HH:MM:SS +ZZZZ'. Returns (year, month, day, hour) or None."""
+    try:
+        day = int(time_str[0:2])
+        month_name = time_str[3:6]
+        year = int(time_str[7:11])
+        hour = int(time_str[12:14])
+        minute = int(time_str[15:17])
+        second = int(time_str[18:20])
+    except (ValueError, IndexError):
+        return None
+
+    month = MONTH_MAP.get(month_name)
+    if month is None:
+        return None
+    if not (1 <= day <= 31):
+        return None
+    if not (0 <= hour <= 23):
+        return None
+    if not (0 <= minute <= 59):
+        return None
+    if not (0 <= second <= 59):
+        return None
+
+    return (year, month, day, hour)
 
 
 def parse_line(line):
@@ -22,12 +78,11 @@ def parse_line(line):
 
     data = match.groupdict()
 
-    try:
-        dt = datetime.strptime(data["time"], TIME_FORMAT)
-    except ValueError:
+    timestamp = parse_timestamp(data["time"])
+    if timestamp is None:
         return None
 
-    data["datetime"] = dt
+    data["timestamp"] = timestamp  # (year, month, day, hour)
     return data
 
 
@@ -86,6 +141,7 @@ def detect_suspicious_activity(ip_counter, path_counter, status_counter, hour_co
         print("✅ SUMMARY: No suspicious activity detected. System appears healthy.")
     print("═" * 60)
 
+
 def print_unauthorized_details(unauthorized_counter):
     print("\n▸ Detailed Unauthorized Access Log (401/403):")
     print("  ─" * 20)
@@ -118,6 +174,7 @@ def print_unauthorized_details(unauthorized_counter):
         top_ip_count = ip_attack_count[top_ip]
         print(f"    🎯 Most active attacker: {top_ip} ({top_ip_count} attempts)")
 
+
 def print_report(total, bad, ip_counter, path_counter, status_counter, hour_counter):
     print("\n" + "═" * 60)
     print("📊 ACCESS LOG ANALYSIS REPORT")
@@ -145,19 +202,21 @@ def print_report(total, bad, ip_counter, path_counter, status_counter, hour_coun
         bar = "█" * min(int(count / max(path_counter.values()) * 30), 30)
         print(f"    {idx:2}. {display_path:<50} {count:>6}  {bar}")
     
-    print("\n▸ Hourly Request Distribution:")
+    print("\n▸ Request Distribution (by date and hour):")
     print("  ─" * 20)
     if hour_counter:
         max_count = max(hour_counter.values())
-        for hour in sorted(hour_counter):
-            count = hour_counter[hour]
+        for bucket in sorted(hour_counter):
+            year, month, day, hour = bucket
+            count = hour_counter[bucket]
             bar_length = int((count / max_count) * 40)
             bar = "█" * bar_length
-            print(f"    {hour:02d}:00  │ {bar:<40} {count:>6}")
+            print(f"    {year}-{month:02d}-{day:02d} {hour:02d}:00  │ {bar:<40} {count:>6}")
     else:
         print("    No hourly data available")
     
     print("\n" + "═" * 60)
+
 
 def main():
     parser = argparse.ArgumentParser(description="Analyze access log files")
@@ -171,6 +230,7 @@ def main():
     status_counter = Counter()
     hour_counter = Counter()
     unauthorized_counter = Counter()
+    error_5xx_counter = Counter()
     
     try:
         input_file = open(args.filepath, "r", encoding="utf-8")
@@ -188,26 +248,27 @@ def main():
         for line in input_file:
             total += 1
             data = parse_line(line)
-
             if data is None:
                 bad += 1
                 bad_file.write(line)
                 continue
-
             good_file.write(line)
-
+            
             ip = data["ip"]
             path = data["path"]
             status = data["status"]
             ip_counter[ip] += 1
             path_counter[path] += 1
             status_counter[status] += 1
-            hour_counter[data["datetime"].hour] += 1
+            hour_counter[data["timestamp"]] += 1
+            if status.startswith("5"):
+                error_5xx_counter[data["timestamp"]] += 1
             if status in ['401', '403']:
                 unauthorized_counter[(ip, path)] += 1
 
     print_report(total, bad, ip_counter, path_counter, status_counter, hour_counter)
     detect_suspicious_activity(ip_counter, path_counter, status_counter, hour_counter, unauthorized_counter)
+    detect_error_spike(hour_counter, error_5xx_counter)
 
 if __name__ == "__main__":
     main()
