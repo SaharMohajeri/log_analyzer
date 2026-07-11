@@ -14,6 +14,23 @@ LOG_PATTERN = re.compile(
 
 TIME_FORMAT = "%d/%b/%Y:%H:%M:%S %z"
 
+
+def parse_line(line):
+    match = LOG_PATTERN.match(line)
+    if match is None:
+        return None
+
+    data = match.groupdict()
+
+    try:
+        dt = datetime.strptime(data["time"], TIME_FORMAT)
+    except ValueError:
+        return None
+
+    data["datetime"] = dt
+    return data
+
+
 def detect_suspicious_activity(ip_counter, path_counter, status_counter, hour_counter, unauthorized_counter):
     print("\n" + "═" * 60)
     print("⚠️  SUSPICIOUS ACTIVITY DETECTION REPORT")
@@ -170,27 +187,22 @@ def main():
 
         for line in input_file:
             total += 1
-            match = LOG_PATTERN.match(line)
-            if match is None:
+            data = parse_line(line)
+
+            if data is None:
                 bad += 1
                 bad_file.write(line)
                 continue
-            data = match.groupdict()
-            try:
-                dt = datetime.strptime(data["time"], TIME_FORMAT)
-            except ValueError:
-                bad += 1
-                bad_file.write(line)
-                continue
+
             good_file.write(line)
-            
+
             ip = data["ip"]
             path = data["path"]
             status = data["status"]
             ip_counter[ip] += 1
             path_counter[path] += 1
             status_counter[status] += 1
-            hour_counter[dt.hour] += 1
+            hour_counter[data["datetime"].hour] += 1
             if status in ['401', '403']:
                 unauthorized_counter[(ip, path)] += 1
 
